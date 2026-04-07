@@ -14,7 +14,7 @@
 
 ## 📖 Quick Scan
 
-**Flux Attention** enables models to achieve both **strong performance** and **efficient inference** by dynamically allocating computation modes (Full Attention or Sparse Attention) to each attention head through our designed Attention Router, adapting sparsity ratios based on input characteristics.
+**Flux Attention** enables models to achieve both **strong performance** and **efficient inference** by dynamically allocating computation modes (Full Attention or Sparse Attention) to each attention layer through our designed Layer Router, adapting sparsity ratios based on input characteristics.
 
 ![Method Overview](figures/arch.png)
 
