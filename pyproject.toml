@@ -1,0 +1,55 @@
+[project]
+name = "sparseattn"
+version = "0.1.0"
+description = "High-Performance Sparse Attention Library for Large Language Models"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+  {name = "QQTang Code", email = "q_qtang@163.com"},
+]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "torch>=2.4.0",
+    "triton>=3.0.0",
+    "einops>=0.7.0",
+    "block_sparse_attn>=0.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=21.0",
+    "flake8>=3.8.0",
+    "pytest>=6.0.0",
+]
+docs = [
+    "sphinx>=4.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/qqtang-code/SparseAttn"
+Repository = "https://github.com/qqtang-code/SparseAttn"
+Documentation = "https://github.com/qqtang-code/SparseAttn/blob/main/README.md"
+"Bug Tracker" = "https://github.com/qqtang-code/SparseAttn/issues"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["sparseattn", "sparseattn.*"]
+
+[tool.setuptools.package-data]
+sparseattn = ["py.typed", "*.so", "*.dll", "*.dylib"]
