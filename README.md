@@ -236,9 +236,18 @@ We acknowledge and reference the following open-source implementations:
 | **InfLLM-V2** | [OpenBMB/infllmv2_cuda_impl](https://github.com/OpenBMB/infllmv2_cuda_impl) |
 | **XAttention** | [mit-han-lab/x-attention](https://github.com/mit-han-lab/x-attention) |
 
+## 🌟 Contributors
+
+We would like to express our special thanks to the following major contributors for their significant efforts and dedication to this project:
+
+- **Yi Yang** - [GitHub: @yy-fighting](https://github.com/yy-fighting)
+- **Zhiyi Hong** - [GitHub: @ACEEE-1222](https://github.com/ACEEE-1222)
+
+
 ## 📬 Contact
 
-If you have any questions, please connect us with: `zecheng.tang@foxmail.com` or `q_qtang@163.com`.
+If you have any questions, please connect us with: `q_qtang@163.com`.
+
 
 
 ## 📝 Citation
@@ -253,6 +262,5 @@ If you find this project useful in your research, please consider citing:
       eprint={2601.17367},
       archivePrefix={arXiv},
       primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2601.17367}, 
+      url={[https://arxiv.org/abs/2601.17367](https://arxiv.org/abs/2601.17367)}, 
 }
-```
