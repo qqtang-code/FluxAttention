@@ -2175,8 +2175,6 @@ class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
         )
 
     def save_pretrained(self, *args, **kwargs):
-        # First save the suggested threshold
-        self.model._pre_save_get_threshold()
         return super().save_pretrained(*args, **kwargs)
 
     def forward(
