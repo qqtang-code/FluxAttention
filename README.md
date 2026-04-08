@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 Flux Attention: Context-Aware Adaptive Routing for Sparse Transformers
+# 🚀 Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference
 
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2601.17367)
 [![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention)
@@ -256,7 +256,7 @@ If you find this project useful in your research, please consider citing:
 
 ```bibtex
 @misc{tang2026fluxattentiontesttimeadaptive,
-      title={Flux Attention: Context-Aware Adaptive Routing for Sparse Transformers}, 
+      title={Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference}, 
       author={Quantong Qiu and Zhiyi Hong and Yi Yang and Haitian Wang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
       year={2026},
       eprint={2601.17367},
