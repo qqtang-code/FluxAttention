@@ -143,8 +143,8 @@ def parse_arguments():
         help="instead of running generation, just count the number of tokens (only for HF models not API)",
     )
 
-    # sparseattn
-    parser.add_argument("--sparseattn", action="store_true", help="e2e eval")
+    # fluxattn
+    parser.add_argument("--fluxattn", action="store_true", help="e2e eval")
 
     # duoattn
     parser.add_argument(

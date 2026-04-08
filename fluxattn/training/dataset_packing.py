@@ -436,10 +436,10 @@ def build_packed_dataset(paths: str, data_args, tokenizer=None, is_sft: bool = F
 
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn", force=True)
-    path = "/workspace/mnt/qqt/public_data/length_subsets/32K-64K"
+    path = "/workspace/mnt/public_data/length_subsets/32K-64K"
     data_args = PackedDataArguments(
         preprocessing_num_workers=32,
-        data_cache_dir="/workspace/mnt/qqt/public_data/data_cache",
+        data_cache_dir="/workspace/mnt/public_data/data_cache",
         per_device_max_tokens=65536,
         min_seq_len=1000,
         suffix="llama3.1-8b_64k_new",
