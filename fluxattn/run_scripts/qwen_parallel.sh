@@ -43,8 +43,8 @@ topk_k=${TOPK_K:-2048}
 enable_ada_sparsity=${ENABLE_ADA_SPARSITY:-true}
 
 # Dataset configuration
-dataset=${DATASET:-"/workspace/mnt/qqt/public_data/qwen_mix_sft_64K6"}
-dataset_cache_dir="/workspace/mnt/qqt/public_data/data_cache"
+dataset=${DATASET:-"/workspace/mnt/public_data/qwen_mix_sft_64K6"}
+dataset_cache_dir="/workspace/mnt/public_data/data_cache"
 # dataset=${DATASET:-"/data1/public_data/Pre_filter"}
 task_type="sft" # pretrain or sft
 
@@ -121,7 +121,7 @@ export SWANLAB_MODE="cloud"
 export TOKENIZERS_PARALLELISM=true
 export LOGIT_BLOCK_SIZE=2048
 
-suffix=${SUFFIX:-"qwen3-4b_new_qqt"}
+suffix=${SUFFIX:-"qwen3-4b"}
 # Training arguments
 base_arguments=(
     --suffix $suffix
