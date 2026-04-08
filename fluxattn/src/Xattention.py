@@ -1064,7 +1064,6 @@ def Xattention_prefill_dim4(
 
         _, _, current_k_len, _ = current_key.shape
         current_q_len = current_k_len
-        # 这个chunk_size是什么意思？为什么是16384？16384=128*128
         if chunk_size is None:
             chunk_size = int(
                 max(
@@ -1076,7 +1075,6 @@ def Xattention_prefill_dim4(
                 )
             )
 
-        # 调用xattn_estimate
         attn_sum, approx_mask = xattn_estimate(
             current_query,
             current_key,
@@ -1093,13 +1091,11 @@ def Xattention_prefill_dim4(
             keep_recent=keep_recent,
         )
 
-        # 用于后续填充
         _, _, q_blocks_of_return, k_blocks_of_return = approx_mask.shape
 
         max_q_blocks_of_return = max(max_q_blocks_of_return, q_blocks_of_return)
         max_k_blocks_of_return = max(max_k_blocks_of_return, k_blocks_of_return)
 
-        # 计算有效的block数量
         valid_q_blocks = (valid_len + block_size - 1) // block_size
         valid_k_blocks = (valid_len + block_size - 1) // block_size
 
@@ -1107,24 +1103,21 @@ def Xattention_prefill_dim4(
         approx_mask[:, :, :, valid_k_blocks:] = False
 
         approx_simple_mask_list.append(approx_mask)
-    # 填充approx_simple_mask_list中的approx_mask到[1, num_heads, max_q_blocks_of_return, max_k_blocks_of_return]
+
     padded_mask_list = []
     for approx_mask in approx_simple_mask_list:
         _, _, current_q_blocks, current_k_blocks = approx_mask.shape
 
-        # 创建填充后的mask
         padded_mask = torch.zeros(
             (1, num_heads, max_q_blocks_of_return, max_k_blocks_of_return),
             dtype=approx_mask.dtype,
             device=approx_mask.device,
         )
 
-        # 将原始mask数据复制到填充后的mask中
         padded_mask[:, :, :current_q_blocks, :current_k_blocks] = approx_mask
 
         padded_mask_list.append(padded_mask)
 
-    # 合并所有batch的结果
     approx_simple_mask = torch.cat(
         padded_mask_list, dim=0
     )  # [batch_size, num_heads, max_q_blocks, max_k_blocks]
@@ -1136,11 +1129,8 @@ def Xattention_prefill_dim4(
     if approx_simple_mask.device != query_states.device:
         approx_simple_mask = approx_simple_mask.to(query_states.device)
 
-    ####################
-    # 根据 cu_seq_lens 转换为去填充格式
-    total_seq_len = cu_seq_lens[-1].item()  # 总的有效token数
+    total_seq_len = cu_seq_lens[-1].item() 
 
-    # 创建去填充的张量
     unpadded_query_states = torch.zeros(
         (total_seq_len, num_heads, head_dim),
         dtype=query_states.dtype,
@@ -1157,17 +1147,13 @@ def Xattention_prefill_dim4(
         device=value_states.device,
     )
 
-    # 填充数据
     for i in range(batch_size):
         start_idx = cu_seq_lens[i].item()
         end_idx = cu_seq_lens[i + 1].item()
         seq_len_i = end_idx - start_idx
 
-        # 获取当前batch的有效token数
         actual_seq_len = seq_len_i
 
-        # 转换维度并复制数据
-        # query_states形状: [batch_size, num_heads, q_len, head_dim]
         unpadded_query_states[start_idx : start_idx + actual_seq_len] = query_states[
             i, :, :actual_seq_len, :
         ].transpose(0, 1)  # [actual_seq_len, num_heads, head_dim]
@@ -1230,7 +1216,6 @@ def Xattention_prefill_dim4(
         exact_streaming=exact_streaming,
     )
 
-    # 将输出转换回批处理格式
     attn_output_batch = []
     for i in range(batch_size):
         start_idx = cu_seq_lens[i].item()
@@ -1238,7 +1223,6 @@ def Xattention_prefill_dim4(
         seq_len_i = end_idx - start_idx
         actual_seq_len = min(seq_len_i, max_q_len)
 
-        # 获取当前batch的输出并转换维度
         batch_output = attn_output[
             start_idx : start_idx + actual_seq_len
         ]  # [actual_seq_len, num_heads, head_dim]
@@ -1246,7 +1230,6 @@ def Xattention_prefill_dim4(
             0
         )  # [1, num_heads, actual_seq_len, head_dim]
 
-        # 如果需要填充到原始长度
         if actual_seq_len < max_q_len:
             pad_size = max_q_len - actual_seq_len
             batch_output = F.pad(batch_output, (0, 0, 0, pad_size, 0, 0, 0, 0))
@@ -1264,7 +1247,6 @@ def Xattention_prefill_dim4(
     return attn_output
 
 
-# 此时处理的是unpadded的query_states
 def Xattention_prefill_dim3(
     query_states: torch.Tensor,
     key_states: torch.Tensor,
@@ -1282,23 +1264,19 @@ def Xattention_prefill_dim3(
     keep_recent=False,
 ):
     num_heads, total_len, head_dim = query_states.shape
-    # 计算每个batch的有效长度
     valid_lengths = cu_seq_lens[1:] - cu_seq_lens[:-1]
     batch_size = valid_lengths.shape[-1]
 
-    max_q_blocks_of_return = 0  # 表示返回的mask.shape[2]
-    max_k_blocks_of_return = 0  # 表示返回的mask.shape[3]
+    max_q_blocks_of_return = 0 
+    max_k_blocks_of_return = 0 
 
-    # 存储每个batch的结果
     approx_simple_mask_list = []
 
-    # 对每个batch单独处理
     for i in range(batch_size):
         start = cu_seq_lens[i].item()
         end = cu_seq_lens[i + 1].item()
         valid_len = end - start
 
-        # 截取当前batch的有效token部分
         current_query = (
             query_states[:, start:end, :].unsqueeze(0).contiguous()
         )  # [1, num_heads, seq_len, head_dim]
@@ -1308,7 +1286,6 @@ def Xattention_prefill_dim3(
 
         _, _, current_k_len, _ = current_key.shape
         current_q_len = current_k_len
-        # 这个chunk_size是什么意思？为什么是16384？16384=128*128
         if chunk_size is None:
             chunk_size = int(
                 max(
@@ -1320,7 +1297,6 @@ def Xattention_prefill_dim3(
                 )
             )
 
-        # 调用xattn_estimate
         attn_sum, approx_mask = xattn_estimate(
             current_query,
             current_key,
@@ -1337,13 +1313,11 @@ def Xattention_prefill_dim3(
             keep_recent=keep_recent,
         )
 
-        # 用于后续填充
         _, _, q_blocks_of_return, k_blocks_of_return = approx_mask.shape
 
         max_q_blocks_of_return = max(max_q_blocks_of_return, q_blocks_of_return)
         max_k_blocks_of_return = max(max_k_blocks_of_return, k_blocks_of_return)
 
-        # 计算有效的block数量
         valid_q_blocks = (valid_len + block_size - 1) // block_size
         valid_k_blocks = (valid_len + block_size - 1) // block_size
 
@@ -1351,23 +1325,21 @@ def Xattention_prefill_dim3(
         approx_mask[:, :, :, valid_k_blocks:] = False
 
         approx_simple_mask_list.append(approx_mask)
-    # 填充approx_simple_mask_list中的approx_mask到[1, num_heads, max_q_blocks_of_return, max_k_blocks_of_return]
+
     padded_mask_list = []
     for approx_mask in approx_simple_mask_list:
         _, _, current_q_blocks, current_k_blocks = approx_mask.shape
 
-        # 创建填充后的mask
         padded_mask = torch.zeros(
             (1, num_heads, max_q_blocks_of_return, max_k_blocks_of_return),
             dtype=approx_mask.dtype,
             device=approx_mask.device,
         )
 
-        # 将原始mask数据复制到填充后的mask中
         padded_mask[:, :, :current_q_blocks, :current_k_blocks] = approx_mask
 
         padded_mask_list.append(padded_mask)
-    # 合并所有batch的结果
+
     approx_simple_mask = torch.cat(
         padded_mask_list, dim=0
     )  # [batch_size, num_heads, max_q_blocks, max_k_blocks]
@@ -1409,28 +1381,6 @@ def Xattention_prefill_dim3(
         deterministic=True,
         is_causal=causal,
     )
-
-    # 将输出转换回批处理格式
-    # attn_output_batch = []
-    # for i in range(batch_size):
-    #     start_idx = cu_seq_lens[i].item()
-    #     end_idx = cu_seq_lens[i + 1].item()
-    #     seq_len_i = end_idx - start_idx
-    #     actual_seq_len = min(seq_len_i, max_q_len)
-
-    #     # 获取当前batch的输出并转换维度
-    #     batch_output = attn_output[start_idx:start_idx + actual_seq_len]  # [actual_seq_len, num_heads, head_dim]
-    #     batch_output = batch_output.transpose(0, 1).unsqueeze(0)  # [1, num_heads, actual_seq_len, head_dim]
-
-    #     # 如果需要填充到原始长度
-    #     if actual_seq_len < max_q_len:
-    #         pad_size = max_q_len - actual_seq_len
-    #         batch_output = F.pad(batch_output, (0, 0, 0, pad_size, 0, 0, 0, 0))
-
-    #     attn_output_batch.append(batch_output)
-
-    # attn_output = torch.cat(attn_output_batch, dim=0)
-    ################################
 
     del query_states
     del approx_simple_mask

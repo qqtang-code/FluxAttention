@@ -1,5 +1,5 @@
 def main():
-    print("Hello from sparseattn!")
+    print("Hello from fluxattn!")
 
 
 if __name__ == "__main__":

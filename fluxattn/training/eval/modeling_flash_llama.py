@@ -17,7 +17,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch Qwen3 model."""
+"""PyTorch LLaMA model."""
 
 from typing import List, Optional, Tuple, Union, Any
 
@@ -38,20 +38,16 @@ from transformers.modeling_outputs import (
 )
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging, ModelOutput, LossKwargs
-from transformers.models.qwen3.configuration_qwen3 import Qwen3Config
+from transformers.models.llama.configuration_llama import LlamaConfig
 from transformers.processing_utils import Unpack
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 
-from flash_attn import (
-    flash_attn_kvpacked_func,
-    flash_attn_varlen_kvpacked_func,
-    flash_attn_with_kvcache,
-    flash_attn_func,
-)
+from flash_attn import flash_attn_kvpacked_func, flash_attn_varlen_kvpacked_func
 from flash_attn.bert_padding import unpad_input, pad_input
-import math
+
+from fluxattn.src.Xattention import Xattention_prefill_dim3, Xattention_prefill_dim4
 
 try:
     from flash_attn.layers.rotary import apply_rotary_emb_func
@@ -63,14 +59,18 @@ from block_sparse_attn import block_streaming_attn_func
 
 from dataclasses import dataclass
 
-from sparseattn.src.Xattention import Xattention_prefill_dim3, Xattention_prefill_dim4
-# from sparseattn.src.flash_decode import flash_decode_leftpad
-
+import math
 
 logger = logging.get_logger(__name__)
 
+import torch
+import math
+import numpy as np
+import torch
+import torch.nn.functional as F
 
-class PawQwen3Config(Qwen3Config):
+
+class PawLlamaConfig(LlamaConfig):
     def __init__(self, *args, **kwargs):
         self.local_window_size = kwargs.pop("local_window_size", 1024)  # 256
 
@@ -91,197 +91,29 @@ class PawQwen3Config(Qwen3Config):
         super().__init__(*args, **kwargs)
 
 
-def generate_streaming_info_blocksparse_flash_attn(
-    sink_block_num, local_block_num, n_query_heads, device
-):
-    streaming_info = torch.tensor(
-        [sink_block_num, local_block_num] * n_query_heads,
-        device=device,
-        dtype=torch.int32,
-    )
-    return streaming_info
+def rmsnorm_func(hidden_states, weight, variance_epsilon):
+    input_dtype = hidden_states.dtype
+    hidden_states = hidden_states.to(torch.float32)
+    variance = hidden_states.pow(2).mean(-1, keepdim=True)
+    hidden_states = hidden_states * torch.rsqrt(variance + variance_epsilon)
+    return (weight * hidden_states).to(input_dtype)
 
 
-def streaming_attn_varlen_kvpacked_func(
-    q: torch.Tensor,
-    kv: torch.Tensor,
-    streaming_info_kwargs: dict,
-    cu_seqlens: torch.Tensor,
-    max_seqlen: int,
-    dropout_p: float = 0.0,
-    causal: bool = True,
-    return_attn_probs: bool = False,
-    window_size: Tuple[int, int] = (0, 0),
-) -> Optional[torch.Tensor]:
-    # kv is of shape [total_seqlen, k_or_v, num_heads, head_dim]
-    k, v = kv[:, 0, :, :], kv[:, 1, :, :]
-
-    total_seqlen, query_heads, head_dim = q.size()
-    key_value_heads = k.size(1)
-
-    # Since all heads are streaming heads
-    head_mask_type = torch.tensor(
-        [-1] * query_heads, device=q.device, dtype=torch.int32
-    )
-
-    streaming_info_kwargs["n_query_heads"] = query_heads
-    streaming_info_kwargs["device"] = q.device
-    streaming_info = generate_streaming_info_blocksparse_flash_attn(
-        **streaming_info_kwargs
-    )
-
-    attn_output = block_streaming_attn_func(
-        q,
-        k,
-        v,
-        cu_seqlens,
-        cu_seqlens,
-        head_mask_type,
-        streaming_info,
-        max_seqlen,
-        max_seqlen,
-        p_dropout=dropout_p,
-        is_causal=causal,
-    )
-
-    return attn_output
-
-
-def streaming_attn_kvpacked_func(
-    q: torch.Tensor,
-    kv: torch.Tensor,
-    streaming_info_kwargs: dict,
-    dropout_p: float = 0.0,
-    causal: bool = True,
-    return_attn_probs: bool = False,
-) -> Optional[torch.Tensor]:
-    # kv is of shape [bsz, kv_seq_len, k_or_v, num_heads, head_dim]
-
-    bsz, seqlen, query_heads, head_dim = q.size()
-    k, v = kv[:, :, 0, :, :], kv[:, :, 1, :, :]
-
-    key_value_heads = k.size(2)
-    kv_seqlen = k.size(1)
-
-    q_unpad = q.view(bsz * seqlen, query_heads, head_dim)
-    k_unpad = k.view(bsz * kv_seqlen, key_value_heads, head_dim)
-    v_unpad = v.view(bsz * kv_seqlen, key_value_heads, head_dim)
-
-    cu_seqlens_q = torch.arange(
-        0, (bsz + 1) * seqlen, step=seqlen, dtype=torch.int32, device=q_unpad.device
-    )
-    cu_seqlens_kv = torch.arange(
-        0,
-        (bsz + 1) * kv_seqlen,
-        step=kv_seqlen,
-        dtype=torch.int32,
-        device=k_unpad.device,
-    )
-
-    # Since all heads are streaming heads
-    head_mask_type = torch.tensor(
-        [-1] * query_heads, device=q.device, dtype=torch.int32
-    )
-
-    streaming_info_kwargs["n_query_heads"] = query_heads
-    streaming_info_kwargs["device"] = q_unpad.device
-    streaming_info = generate_streaming_info_blocksparse_flash_attn(
-        **streaming_info_kwargs
-    )
-
-    attn_output = block_streaming_attn_func(
-        q_unpad,
-        k_unpad,
-        v_unpad,
-        cu_seqlens_q,
-        cu_seqlens_kv,
-        head_mask_type,
-        streaming_info,
-        seqlen,
-        seqlen,
-        p_dropout=dropout_p,
-        is_causal=causal,
-    )
-
-    return attn_output.reshape(bsz, seqlen, query_heads, head_dim)
-
-
-def streaming_attn_func(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    streaming_info_kwargs: dict,
-    dropout_p: float = 0.0,
-    causal: bool = True,
-    return_attn_probs: bool = False,
-) -> Optional[torch.Tensor]:
-    # kv is of shape [bsz, kv_seq_len, k_or_v, num_heads, head_dim]
-    bsz, seqlen, query_heads, head_dim = q.size()
-
-    key_value_heads = k.size(2)
-    kv_seqlen = k.size(1)
-
-    q_unpad = q.view(bsz * seqlen, query_heads, head_dim)
-    k_unpad = k.view(bsz * kv_seqlen, key_value_heads, head_dim)
-    v_unpad = v.view(bsz * kv_seqlen, key_value_heads, head_dim)
-
-    cu_seqlens_q = torch.arange(
-        0, (bsz + 1) * seqlen, step=seqlen, dtype=torch.int32, device=q_unpad.device
-    )
-    cu_seqlens_kv = torch.arange(
-        0,
-        (bsz + 1) * kv_seqlen,
-        step=kv_seqlen,
-        dtype=torch.int32,
-        device=k_unpad.device,
-    )
-
-    # Since all heads are streaming heads
-    head_mask_type = torch.tensor(
-        [-1] * query_heads, device=q.device, dtype=torch.int32
-    )
-
-    streaming_info_kwargs["n_query_heads"] = query_heads
-    streaming_info_kwargs["device"] = q_unpad.device
-    streaming_info = generate_streaming_info_blocksparse_flash_attn(
-        **streaming_info_kwargs
-    )
-
-    attn_output = block_streaming_attn_func(
-        q_unpad,
-        k_unpad,
-        v_unpad,
-        cu_seqlens_q,
-        cu_seqlens_kv,
-        head_mask_type,
-        streaming_info,
-        seqlen,
-        seqlen,
-        p_dropout=dropout_p,
-        is_causal=causal,
-    )
-
-    return attn_output.reshape(bsz, seqlen, query_heads, head_dim)
-
-
-class Qwen3RMSNorm(nn.Module):
+class LlamaRMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         """
-        Qwen3RMSNorm is equivalent to T5LayerNorm
+        LlamaRMSNorm is equivalent to T5LayerNorm
         """
         super().__init__()
         self.weight = nn.Parameter(torch.ones(hidden_size))
-        self.variance_epsilon = eps
+        self.register_buffer(
+            "variance_epsilon",
+            torch.tensor(eps),
+            persistent=False,
+        )
 
     def forward(self, hidden_states):
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-    def extra_repr(self):
-        return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
+        return rmsnorm_func(hidden_states, self.weight, self.variance_epsilon)
 
 
 class FlashRotaryEmbedding(torch.nn.Module):
@@ -452,7 +284,7 @@ class FlashRotaryEmbedding(torch.nn.Module):
             assert False
 
 
-class Qwen3RotaryEmbedding(nn.Module):
+class LlamaRotaryEmbedding(nn.Module):
     def __init__(
         self,
         dim=None,
@@ -462,7 +294,7 @@ class Qwen3RotaryEmbedding(nn.Module):
         scaling_factor=1.0,
         rope_type="default",
         interleaved=False,
-        config: Optional[PawQwen3Config] = None,
+        config: Optional[PawLlamaConfig] = None,
     ):
         super().__init__()
         self.rope_kwargs = {}
@@ -558,7 +390,7 @@ class Qwen3RotaryEmbedding(nn.Module):
 
         self._update_cos_sin_cache(max_seqlen + seqlen_offset, q.device, q.dtype)
 
-        rope_q = apply_rotary_emb_func(
+        return apply_rotary_emb_func(
             q,
             self._cos_cached[seqlen_offset:],
             self._sin_cached[seqlen_offset:],
@@ -566,8 +398,7 @@ class Qwen3RotaryEmbedding(nn.Module):
             True,
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
-        )
-        rope_k = apply_rotary_emb_func(
+        ), apply_rotary_emb_func(
             k,
             self._cos_cached[seqlen_offset:],
             self._sin_cached[seqlen_offset:],
@@ -576,10 +407,9 @@ class Qwen3RotaryEmbedding(nn.Module):
             cu_seqlens=cu_seqlens,
             max_seqlen=max_seqlen,
         )
-        return rope_q, rope_k
 
 
-class Qwen3MLP(nn.Module):
+class LlamaMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -591,57 +421,17 @@ class Qwen3MLP(nn.Module):
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x):
-        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
-        return down_proj
-
-
-def rotate_half(x):
-    """Rotates half the hidden dims of the input."""
-    x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
-    return torch.cat((-x2, x1), dim=-1)
-
-
-def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
-    """Applies Rotary Position Embedding to the query and key tensors.
-
-    Args:
-        q (`torch.Tensor`): The query tensor.
-        k (`torch.Tensor`): The key tensor.
-        cos (`torch.Tensor`): The cosine part of the rotary embedding.
-        sin (`torch.Tensor`): The sine part of the rotary embedding.
-        position_ids (`torch.Tensor`, *optional*):
-            Deprecated and unused.
-        unsqueeze_dim (`int`, *optional*, defaults to 1):
-            The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
-            sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
-            that cos[position_ids] and sin[position_ids] have the shape [batch_size, seq_len, head_dim]. Then, if q and
-            k have the shape [batch_size, heads, seq_len, head_dim], then setting unsqueeze_dim=1 makes
-            cos[position_ids] and sin[position_ids] broadcastable to the shapes of q and k. Similarly, if q and k have
-            the shape [batch_size, seq_len, heads, head_dim], then set unsqueeze_dim=2.
-    Returns:
-        `tuple(torch.Tensor)` comprising of the query and key tensors rotated using the Rotary Position Embedding.
-    """
-    cos = cos.unsqueeze(unsqueeze_dim)
-    sin = sin.unsqueeze(unsqueeze_dim)
-    q_embed = (q * cos) + (rotate_half(q) * sin)
-    k_embed = (k * cos) + (rotate_half(k) * sin)
-    return q_embed, k_embed
+        return self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
 
 @torch.jit.script
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
-    """
-    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
-    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
-    """
-    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
     if n_rep == 1:
         return hidden_states
-    hidden_states = hidden_states[:, :, None, :, :].expand(
-        batch, num_key_value_heads, n_rep, slen, head_dim
-    )
-    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+    final_shape = list(hidden_states.shape[:-2]) + [-1] + [hidden_states.shape[-1]]
+    expand_shape = [-1] * (len(hidden_states.shape) - 1) + [n_rep] + [-1]
+    hidden_states = hidden_states.unsqueeze(-2).expand(expand_shape)
+    return hidden_states.reshape(final_shape)
 
 
 class AttentionRouter(nn.Module):
@@ -788,7 +578,7 @@ class AttentionRouter(nn.Module):
         )
         z_expanded = z.expand(-1, H_dim_size).unsqueeze(-1)
 
-        # Logits: [B, 1] -> [B, H, 1] 或 [B, 2] -> [B, H, 2]
+        # Logits: [B, 1] -> [B, H, 1] or [B, 2] -> [B, H, 2]
         if self.use_softmax:
             # binary_logits [B, 2] --> [B, H, 2]
             binary_logits_expanded = binary_logits.unsqueeze(1).expand(
@@ -819,33 +609,35 @@ class AttentionRouter(nn.Module):
         }
 
 
-class Qwen3Attention(nn.Module):
+class LlamaAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(
         self,
-        config: PawQwen3Config,
+        config: PawLlamaConfig,
         context_window_toggle: Optional[int] = 1024,
+        layer_idx: int = 1,
     ):
         """
         @context_window_toggle: if not None, the attention will be limited to a context window specified by this value
         """
         super().__init__()
+        self.layer_idx = layer_idx
         self.config = config
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
-        self.head_dim = getattr(
-            config, "head_dim", config.hidden_size // config.num_attention_heads
-        )
+        self.head_dim = self.hidden_size // self.num_heads
         self.num_key_value_heads = getattr(
             config, "num_key_value_heads", self.num_heads
         )
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
-        self.scaling = self.head_dim**-0.5
         self.max_position_embeddings = config.max_position_embeddings
-        self.attention_dropout = config.attention_dropout
-        self.is_causal = True
 
+        if (self.head_dim * self.num_heads) != self.hidden_size:
+            raise ValueError(
+                f"hidden_size must be divisible by num_heads (got `hidden_size`: {self.hidden_size}"
+                f" and `num_heads`: {self.num_heads})."
+            )
         self.q_proj = nn.Linear(
             self.hidden_size, self.num_heads * self.head_dim, bias=False
         )
@@ -867,23 +659,9 @@ class Qwen3Attention(nn.Module):
             persistent=False,
         )
 
-        self.q_norm = Qwen3RMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # unlike olmo, only on the head dim!
-        self.k_norm = Qwen3RMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # thus post q_norm does not need reshape
-
-        self.rotary_emb = Qwen3RotaryEmbedding(config=self.config)
+        self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
 
         self._dtype = self.q_proj.weight.dtype
-        self.attn_mask_log_alphas = nn.Parameter(
-            torch.empty(self.num_key_value_heads, dtype=self._dtype)
-        )
-        self.attn_mask_log_alphas.data.normal_(
-            mean=4.5, std=0.01
-        )  # sigmoid(4.5) ≈ 0.989
-        self.threshold_for_deterministic = None
 
         self.mask_allocator = AttentionRouter(
             input_dim=self.hidden_size,
@@ -900,36 +678,29 @@ class Qwen3Attention(nn.Module):
 
         self.context_window_toggle = context_window_toggle
 
-        self.toggle_type = config.toggle_type
         self.sink_blocks = (config.sink_size + 127) // 128
         self.local_blocks = (config.local_window_size + 127) // 128
 
-        self.retrieval_mode = config.retrieval_mode
-
-        if self.retrieval_mode == "xattn" or self.toggle_type == "streaming":
-            from sparseattn.utils.ops.xattention_fa import xattn_flash_attn_func
-
-            self.streaming_info_kwargs = {
-                "sink_block_num": self.sink_blocks,
-                "local_block_num": self.local_blocks,
-            }
-            # self.head_indices = self.num_heads // self.num_key_value_heads
-            self.head_indices = self.num_heads
-            self.xattn_flash_attn_func = xattn_flash_attn_func
-            self.granularity = int(getattr(config, "block_size", 128))
-            self.xattn_params = {
-                "stride": 16,
-                "norm": 1,
-                "softmax": True,
-                "threshold": 0.9,
-                "chunk_size": 16384,
-                "select_mode": "inverse",
-                "use_triton": True,
-                "causal": True,
-                "kdb": 1,
-                "keep_sink": True,
-                "keep_recent": True,
-            }
+        self.streaming_info_kwargs = {
+            "sink_block_num": self.sink_blocks,
+            "local_block_num": self.local_blocks,
+        }
+        # self.head_indices = self.num_heads // self.num_key_value_heads
+        self.head_indices = self.num_heads
+        self.granularity = int(getattr(config, "block_size", 64))
+        self.xattn_params = {
+            "stride": 16,
+            "norm": 1,
+            "softmax": True,
+            "threshold": 0.9,
+            "chunk_size": 16384,
+            "select_mode": "inverse",
+            "use_triton": True,
+            "causal": True,
+            "kdb": 1,
+            "keep_sink": True,
+            "keep_recent": True,
+        }
 
         if self.toggle_type == "streaming":
             self.streaming_info_kwargs = {
@@ -937,6 +708,8 @@ class Qwen3Attention(nn.Module):
                 "local_block_num": self.local_blocks,
             }
             self.context_window_toggle = (self.sink_blocks + self.local_blocks) * 128
+        elif self.toggle_type == "local":
+            pass
         elif self.toggle_type == "triangle":
             self.streaming_info_kwargs = {
                 "sink_block_num": self.sink_blocks,
@@ -944,10 +717,6 @@ class Qwen3Attention(nn.Module):
             }
             self.context_window_toggle = (self.sink_blocks + self.local_blocks) * 128
             self.triangle_n_last = config.triangle_n_last
-        elif self.toggle_type == "topk":
-            self.topk_k = int(getattr(config, "topk_k", 2048))
-            self.topk_q_chunk = int(os.environ.get("TOPK_Q_CHUNK", 128))
-            self.topk_k_chunk = int(os.environ.get("TOPK_K_CHUNK", 4096))
         elif self.toggle_type == "xattn" or self.retrieval_mode == "xattn":
             self.streaming_info_kwargs = {
                 "sink_block_num": self.sink_blocks,
@@ -969,7 +738,7 @@ class Qwen3Attention(nn.Module):
                 "keep_sink": True,
                 "keep_recent": True,
             }
-        elif self.toggle_type == "none":
+        elif self.toggle_type == "none" or self.toggle_type == "full":
             pass
         else:
             raise ValueError(f"Unknown toggle type: {self.toggle_type}")
@@ -1001,9 +770,11 @@ class Qwen3Attention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
-        q = self.q_norm(self.q_proj(hidden_states).view(hidden_shape))
-        k = self.k_norm(self.k_proj(hidden_states).view(hidden_shape))
+
+        q = self.q_proj(hidden_states).view(hidden_shape)
+        k = self.k_proj(hidden_states).view(hidden_shape)
         v = self.v_proj(hidden_states).view(hidden_shape)
+
         has_layer_past = past_key_value is not None
 
         if not has_layer_past:
@@ -1011,6 +782,7 @@ class Qwen3Attention(nn.Module):
             z_kv_batch = res["sparse_mask"]
             if z_kv_batch.shape[-2] == self.num_key_value_heads:
                 z_kv_batch = z_kv_batch.repeat_interleave(self.num_key_value_groups, 1)
+
             sparse_attention_gate = 1 if z_kv_batch.sum(1) != 0 else 0
             past_len = 0
         else:
@@ -1024,6 +796,9 @@ class Qwen3Attention(nn.Module):
             past_len += position_ids.min()
 
         q, k = self.rotary_emb(q, k, past_len, unpadded_lengths)
+
+        kv = torch.stack([k, v], -3)
+
         if has_layer_past:
             new_len = past_len + q.size(1)
             if new_len > past_k.size(1):
@@ -1107,7 +882,7 @@ class Qwen3Attention(nn.Module):
                         threshold,
                         use_triton=True,
                     ).transpose(1, 2)  # B, T, H, D
-                elif self.toggle_type == "triangle":
+                elif self.retrieval_mode == "triangle":
                     k_cache = k_cache.repeat_interleave(
                         self.num_key_value_groups, dim=2
                     )
@@ -1186,16 +961,12 @@ class Qwen3Attention(nn.Module):
                         return_attn_probs=False,
                     ).view(bsz, seqlen, self.num_heads, self.head_dim)
                 elif self.toggle_type == "xattn":
-                    k_cache = k_cache.repeat_interleave(
-                        self.num_key_value_groups, dim=2
-                    )
-                    v_cache = v_cache.repeat_interleave(
-                        self.num_key_value_groups, dim=2
-                    )
-                    q, k_cache, v_cache = (
+                    k = k.repeat_interleave(self.num_key_value_groups, dim=2)
+                    v = v.repeat_interleave(self.num_key_value_groups, dim=2)
+                    q, k, v = (
                         q.transpose(1, 2).contiguous(),
-                        k_cache.transpose(1, 2).contiguous(),
-                        v_cache.transpose(1, 2).contiguous(),
+                        k.transpose(1, 2).contiguous(),
+                        v.transpose(1, 2).contiguous(),
                     )
                     bsz, _, seqlen, _ = q.size()
                     max_seqlen = seqlen
@@ -1215,8 +986,8 @@ class Qwen3Attention(nn.Module):
                     norm = self.xattn_params["norm"]
                     attn_output = Xattention_prefill_dim4(
                         q,
-                        k_cache,
-                        v_cache,
+                        k,
+                        v,
                         stride,
                         cu_seqlens,
                         norm,
@@ -1328,7 +1099,6 @@ class Qwen3Attention(nn.Module):
         attn_output = self.o_proj(attn_output.to(self.o_proj.weight.dtype))
 
         attn_weights = None
-
         return (
             z_kv_batch.squeeze(-1).sum(dim=-1),
             attn_output,
@@ -1337,23 +1107,42 @@ class Qwen3Attention(nn.Module):
         )
 
 
-class Qwen3DecoderLayer(nn.Module):
+class LlamaDecoderLayer(nn.Module):
     def __init__(
         self,
-        config: PawQwen3Config,
+        config: PawLlamaConfig,
         context_window_toggle: Optional[int] = 4096,
+        layer_idx: int = 0,
     ):
         super().__init__()
         self.hidden_size = config.hidden_size
-        self.self_attn = Qwen3Attention(
-            config=config, context_window_toggle=context_window_toggle
+        self.self_attn = LlamaAttention(
+            config=config,
+            context_window_toggle=context_window_toggle,
+            layer_idx=layer_idx,
         )
-        self.mlp = Qwen3MLP(config)
-        self.input_layernorm = Qwen3RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.post_attention_layernorm = Qwen3RMSNorm(
+        self.mlp = LlamaMLP(config)
+        self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = LlamaRMSNorm(
             config.hidden_size, eps=config.rms_norm_eps
         )
         self._fsdp_wrap = True
+
+    @torch.no_grad()
+    def set_threshold_for_deterministic(self, threshold_for_deterministic):
+        self.self_attn.set_threshold_for_deterministic(threshold_for_deterministic)
+
+    @torch.no_grad()
+    def get_masks(self):
+        return self.self_attn.get_masks()
+
+    @torch.no_grad()
+    def reset_masks(self, value=4.0):
+        self.self_attn.reset_masks(value)
+
+    @torch.no_grad()
+    def fill_masks_with_value(self, value):
+        self.self_attn.fill_masks_with_value(value)
 
     def forward(
         self,
@@ -1424,19 +1213,12 @@ class Qwen3DecoderLayer(nn.Module):
         return outputs
 
 
-class Qwen3PreTrainedModel(PreTrainedModel):
-    config_class = PawQwen3Config
+class LlamaPreTrainedModel(PreTrainedModel):
+    config_class = PawLlamaConfig
     base_model_prefix = "model"
     supports_gradient_checkpointing = True
-    _no_split_modules = ["Qwen3DecoderLayer"]
+    _no_split_modules = ["LlamaDecoderLayer"]
     _skip_keys_device_placement = "past_key_values"
-    _supports_flash_attn_2 = True
-    _supports_sdpa = True
-    _supports_flex_attn = True
-    _supports_cache_class = True
-    _supports_quantized_cache = True
-    _supports_static_cache = True
-    _supports_attention_backend = True
 
     def _init_weights(self, module):
         std = self.config.initializer_range
@@ -1459,21 +1241,20 @@ class BaseModelOutputWithPastAndSparsity(ModelOutput):
     model_sparsity: Optional[torch.FloatTensor] = None
 
 
-class Qwen3Model(Qwen3PreTrainedModel):
+class LlamaModel(LlamaPreTrainedModel):
     """
-    Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`Qwen3DecoderLayer`]
+    Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`LlamaDecoderLayer`]
 
     Args:
-        config: PawQwen3Config
+        config: PawLlamaConfig
     """
 
     def __init__(
         self,
-        config: PawQwen3Config,
+        config: PawLlamaConfig,
     ):
         super().__init__(config)
         context_window_toggle = config.local_window_size
-        disable_linear_regularization_term = config.disable_linear_regularization_term
 
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -1483,12 +1264,13 @@ class Qwen3Model(Qwen3PreTrainedModel):
         )
         self.layers = nn.ModuleList(
             [
-                Qwen3DecoderLayer(config, context_window_toggle=context_window_toggle)
-                for _ in range(config.num_hidden_layers)
+                LlamaDecoderLayer(
+                    config, context_window_toggle=context_window_toggle, layer_idx=i
+                )
+                for i in range(config.num_hidden_layers)
             ]
         )
-        self.norm = Qwen3RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        self.rotary_emb = Qwen3RotaryEmbedding(config=config)
+        self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.gradient_checkpointing = False
 
         self.total_num_heads = config.num_attention_heads * config.num_hidden_layers
@@ -1496,40 +1278,8 @@ class Qwen3Model(Qwen3PreTrainedModel):
 
         self._dtype = self.norm.weight.dtype
 
-        self.threshold_for_deterministic = None
-
-        self._erank_cache = {}
         # Initialize weights and apply final processing
         self.post_init()
-
-    @torch.no_grad()
-    def reset_parameters(self):
-        if self.config.enable_lambda_task:
-            self.sparsity_lambda1_task.data.copy_(
-                torch.rand_like(self.sparsity_lambda1_task) * 0.5
-            )
-            self.sparsity_lambda2_task.data.copy_(
-                torch.rand_like(self.sparsity_lambda2_task) * 0.5
-            )
-
-    @torch.no_grad()
-    def set_threshold_for_deterministic(self, threshold_for_deterministic):
-        for layer in self.layers:
-            layer.set_threshold_for_deterministic(threshold_for_deterministic)
-
-    @torch.no_grad()
-    def get_masks(self):
-        masks = []
-        for layer in self.layers:
-            masks.append(layer.get_masks())
-        return masks
-
-    @torch.no_grad()
-    def reset_masks(self, value=4.0):
-        for layer in self.layers:
-            layer.reset_masks(value)
-        self.sparsity_lambda_1.data.zero_()
-        self.sparsity_lambda_2.data.zero_()
 
     @torch.no_grad()
     def get_sparsity(self):
@@ -1558,17 +1308,6 @@ class Qwen3Model(Qwen3PreTrainedModel):
         self.config.suggested_threshold = m
 
     @torch.no_grad()
-    def _get_avg_erank(self, path: str) -> torch.Tensor:
-        key = os.path.abspath(path)
-        if key in self._erank_cache:
-            return self._erank_cache[key]
-        erank_res = torch.load(key, map_location="cpu")
-        print(f"Loaded e-rank results from {key}: {erank_res}")
-        avg_erank = erank_res["avg_erank"]
-        self._erank_cache[key] = avg_erank
-        return avg_erank
-
-    @torch.no_grad()
     def reset_masks_with_stripe_pattern(self, width_1, width_2, start_with_keep=True):
         if start_with_keep:
             value_1 = 10.0  # Some high value
@@ -1576,7 +1315,7 @@ class Qwen3Model(Qwen3PreTrainedModel):
         else:
             value_1 = -10.0
             value_2 = 10.0
-        for l, layer in enumerate(self.layers):
+        for l, layer in range(len(self.layers)):
             value = value_1 if l % (width_1 + width_2) < width_1 else value_2
             layer.fill_masks_with_value(value)
 
@@ -1584,34 +1323,6 @@ class Qwen3Model(Qwen3PreTrainedModel):
     def load_masks(self, masks):
         for l in range(len(masks)):
             self.layers[l].fill_masks_with_value(masks[l])
-
-    @torch.no_grad()
-    def round_masks_for_sparsity(self, target_sparsity):
-        masks = self.get_masks()
-        # masks is a list of tensors, each tensor is of shape (num_key_value_heads,)
-        # First find the number of high values
-        num_high = int(sum([mask.shape[0] for mask in masks]) * (1 - target_sparsity))
-
-        # Find the top-num_high values
-        # Break ties randomly
-        rng = torch.Generator()
-        rng.manual_seed(42)
-        value_list = [
-            (i, j, masks[i][j], torch.rand(1, generator=rng).item())
-            for i in range(len(masks))
-            for j in range(masks[i].shape[0])
-        ]
-        # Sort by the random variable then resort by the value
-        value_list.sort(key=lambda x: x[3])
-        value_list.sort(key=lambda x: x[2], reverse=True)
-        for i, j, _, _ in value_list[:num_high]:
-            masks[i][j] = 10.0
-        for i, j, _, _ in value_list[num_high:]:
-            masks[i][j] = -10.0
-
-        self.load_masks(masks)
-
-        return self.get_sparsity()
 
     def get_input_embeddings(self):
         return self.embed_tokens
@@ -1632,9 +1343,10 @@ class Qwen3Model(Qwen3PreTrainedModel):
         return_dict: Optional[bool] = None,
         unpadded_lengths: Optional[Tuple[torch.Tensor]] = None,
         seq_parallel_group: Optional[Any] = None,
-        **flash_attn_kwargs: Unpack[FlashAttentionKwargs],
+        # enable_contrastive_loss: bool = False,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         compute_sparsity = self.training
+        # compute_sparsity = True
         output_attentions = (
             output_attentions
             if output_attentions is not None
@@ -1662,6 +1374,7 @@ class Qwen3Model(Qwen3PreTrainedModel):
             )
 
         # position_ids = None
+
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
@@ -1679,7 +1392,11 @@ class Qwen3Model(Qwen3PreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = () if use_cache else None
 
-        z_sum = None
+        z_sum = 0 if compute_sparsity else None
+        layer_z_sums = []
+
+        head_entropy = 0 if compute_sparsity else None
+        layer_z_constrast = []
 
         for idx, decoder_layer in enumerate(self.layers):
             if output_hidden_states:
@@ -1778,56 +1495,24 @@ class CausalLMOutputWithPastAndSparsity(ModelOutput):
 class KwargsForCausalLM(FlashAttentionKwargs, LossKwargs): ...
 
 
-class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
+class PawLlamaForCausalLM(LlamaPreTrainedModel):
     _tied_weights_keys = ["lm_head.weight"]
-    _tp_plan = {"lm_head": "colwise_rep"}
-    _pp_plan = {"lm_head": (["hidden_states"], ["logits"])}
 
     def __init__(
         self,
         config,
-        enable_contrastive_loss=False,
     ):
         super().__init__(config)
-        self.model = Qwen3Model(
+        self.model = LlamaModel(
             config,
         )
         self.vocab_size = config.vocab_size
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.logit_block_size = int(os.environ.get("LOGIT_BLOCK_SIZE", 16384))
-        self.enable_contrastive_loss = enable_contrastive_loss
         self.prefill_sparsity = None
         # Initialize weights and apply final processing
         self.post_init()
-
-    @torch.no_grad()
-    def set_threshold_for_deterministic(self, threshold_for_deterministic):
-        self.model.set_threshold_for_deterministic(threshold_for_deterministic)
-
-    @torch.no_grad()
-    def get_masks(self):
-        return self.model.get_masks()
-
-    @torch.no_grad()
-    def reset_masks(self, value=4.0):
-        self.model.reset_masks(value)
-
-    @torch.no_grad()
-    def get_sparsity(self):
-        return self.model.get_sparsity()
-
-    @torch.no_grad()
-    def reset_masks_with_stripe_pattern(self, width_1, width_2, start_with_keep=True):
-        self.model.reset_masks_with_stripe_pattern(width_1, width_2, start_with_keep)
-
-    @torch.no_grad()
-    def load_masks(self, masks):
-        self.model.load_masks(masks)
-
-    @torch.no_grad()
-    def round_masks_for_sparsity(self, target_sparsity):
-        return self.model.round_masks_for_sparsity(target_sparsity)
 
     def get_input_embeddings(self):
         return self.model.embed_tokens
@@ -1887,6 +1572,7 @@ class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
         return_token_losses: bool = False,
         shifted_labels: Optional[torch.LongTensor] = None,
         seq_parallel_group: Optional[Any] = None,
+        target_sparsity: Optional[float] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
         **kwargs: Unpack[KwargsForCausalLM],
     ) -> Union[Tuple, CausalLMOutputWithPast]:
@@ -1902,9 +1588,9 @@ class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
         Example:
 
         ```python
-        >>> from transformers import AutoTokenizer, Qwen3ForCausalLM
+        >>> from transformers import AutoTokenizer, LlamaForCausalLM
 
-        >>> model = Qwen3ForCausalLM.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
+        >>> model = LlamaForCausalLM.from_pretrained(PATH_TO_CONVERTED_WEIGHTS)
         >>> tokenizer = AutoTokenizer.from_pretrained(PATH_TO_CONVERTED_TOKENIZER)
 
         >>> prompt = "Hey, are you conscious? Can you talk to me?"
@@ -1989,10 +1675,6 @@ class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
             self.prefill_sparsity = outputs.model_sparsity.detach()
 
         hidden_states = outputs[0]
-        if seq_lengths is None and unpadded_lengths is not None:
-            hidden_states = pad_input(
-                hidden_states, unpad_indices, bsz, max_seqlen_for_pad_seq
-            )
         logits = self.lm_head(hidden_states[:, -1:, :])
         loss = None
         if not return_dict:
@@ -2067,17 +1749,14 @@ class PawQwen3ForCausalLM(Qwen3PreTrainedModel):
 
 
 if __name__ == "__main__":
-    from transformers import AutoTokenizer
+    from transformers import AutoTokenizer, LlamaForCausalLM
 
-    path = "...."
-    config = PawQwen3Config.from_pretrained(path)
-    config.enable_ada_sparsity = True
-    config.pooling_mode = "ctx_q"
+    path = ""
     device = torch.device("cuda")
     tokenizer = AutoTokenizer.from_pretrained(path)
-    model = PawQwen3ForCausalLM.from_pretrained(
+
+    model = LlamaForCausalLM.from_pretrained(
         path,
-        config=config,
         torch_dtype=torch.bfloat16,
     ).to(device)
     prompt = "你好，你是谁?"

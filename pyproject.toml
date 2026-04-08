@@ -4,9 +4,7 @@ version = "0.1.0"
 description = "High-Performance Sparse Attention Library for Large Language Models"
 readme = "README.md"
 license = {file = "LICENSE"}
-authors = [
-  {name = "QQTang Code", email = "q_qtang@163.com"},
-]
+
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -37,12 +35,6 @@ docs = [
     "sphinx>=4.0.0",
     "sphinx-rtd-theme>=1.0.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/qqtang-code/SparseAttn"
-Repository = "https://github.com/qqtang-code/SparseAttn"
-Documentation = "https://github.com/qqtang-code/SparseAttn/blob/main/README.md"
-"Bug Tracker" = "https://github.com/qqtang-code/SparseAttn/issues"
 
 [build-system]
 requires = ["setuptools>=45", "wheel"]
