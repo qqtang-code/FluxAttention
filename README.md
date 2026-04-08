@@ -4,8 +4,10 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2601.17367)
 [![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention)
-[![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/LCM_group/flux-Attention)
+[![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+
 
 
 </div>
@@ -112,7 +114,7 @@ Pre-trained models and checkpoints are available on ModelScope.
 
 | Model Series | Models | Model Collection |
 | --- | --- | --- |
-| **Flux-Attention Collection** | Qwen3-4B / Qwen3-8B / Llama3.1-8B-Instruct | [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention) / [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/LCM_group/flux-Attention) |
+| **Flux-Attention Collection** | Qwen3-4B / Qwen3-8B / Llama3.1-8B-Instruct | [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention) / [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention) |
 
 ## 🏃 Training
 
@@ -255,7 +257,7 @@ If you find this project useful in your research, please consider citing:
 ```bibtex
 @misc{tang2026fluxattentiontesttimeadaptive,
       title={Flux Attention: Context-Aware Adaptive Routing for Sparse Transformers}, 
-      author={Quantong Qiu and Yi Yang and Zhiyi Hong and Haiya Xiang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
+      author={Quantong Qiu and Zhiyi Hong and Yi Yang and Haitian Wang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
       year={2026},
       eprint={2601.17367},
       archivePrefix={arXiv},
