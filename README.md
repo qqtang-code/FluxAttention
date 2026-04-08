@@ -3,7 +3,7 @@
 # 🚀 Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference
 
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2601.17367)
-[![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention)
+[![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/QQTang1223/flux-attention)
 [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -114,7 +114,7 @@ Pre-trained models and checkpoints are available on ModelScope.
 
 | Model Series | Models | Model Collection |
 | --- | --- | --- |
-| **Flux-Attention Collection** | Qwen3-4B / Qwen3-8B / Llama3.1-8B-Instruct | [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/LCM-Lab/flux-attention) / [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention) |
+| **Flux-Attention Collection** | Qwen3-4B / Qwen3-8B / Llama3.1-8B-Instruct | [![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/QQTang1223/flux-attention) / [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention) |
 
 ## 🏃 Training
 
