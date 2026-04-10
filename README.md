@@ -83,8 +83,8 @@ pip install modelscope  # Required for data download
 
 ```bash
 # Clone the repository
-git clone https://github.com/LCM-Lab/flux-Attention.git
-cd flux-Attention
+git clone https://github.com/qqtang-code/FluxAttention.git
+cd FluxAttention
 pip install -e .
 ```
 
