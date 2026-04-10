@@ -3,25 +3,84 @@ layout: home
 title: Flux Attention
 ---
 
-# Flux Attention
+<section class="hero">
+  <p class="eyebrow">Long-Context LLM Acceleration</p>
+  <h1>Flux Attention</h1>
+  <p class="tagline">Context-Aware Hybrid Attention for efficient, high-fidelity inference at scale.</p>
+  <div class="hero-chips">
+    <span>Adaptive Layer Router</span>
+    <span>Full + Sparse Hybrid</span>
+    <span>Production-Oriented Inference</span>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="https://arxiv.org/abs/2604.07394" target="_blank" rel="noopener">Read Paper</a>
+    <a class="btn btn-ghost" href="https://github.com/qqtang-code/FluxAttention" target="_blank" rel="noopener">View on GitHub</a>
+  </div>
+  <div class="hero-links">
+    <a href="https://huggingface.co/collections/QQTang1223/flux-attention" target="_blank" rel="noopener">Hugging Face Collection</a>
+    <span>•</span>
+    <a href="https://modelscope.cn/collections/tang031223/Flux-Attention" target="_blank" rel="noopener">ModelScope Collection</a>
+  </div>
+</section>
 
-Context-Aware Hybrid Attention for Efficient LLMs Inference.
+<section class="stat-grid">
+  <article class="stat-card">
+    <h3>12 Hours</h3>
+    <p>Training for 8B-scale models on 8x A800 GPUs.</p>
+  </article>
+  <article class="stat-card">
+    <h3>Long Context</h3>
+    <p>Maintains strong retrieval quality across long sequences.</p>
+  </article>
+  <article class="stat-card">
+    <h3>Practical Speedups</h3>
+    <p>Higher sparsity with stable memory behavior in inference.</p>
+  </article>
+</section>
 
-[Paper (arXiv)](https://arxiv.org/abs/2601.17367) | [Hugging Face Collection](https://huggingface.co/collections/QQTang1223/flux-attention) | [ModelScope Collection](https://modelscope.cn/collections/tang031223/Flux-Attention)
+<section class="section-block">
+  <h2>What Makes It Different</h2>
+  <p>
+    Flux Attention uses a layer-level router to allocate <strong>Full Attention</strong> and <strong>Sparse Attention</strong>
+    dynamically. Instead of fixed attention patterns, it adapts to input characteristics to preserve quality while reducing cost.
+  </p>
+</section>
 
-## Overview
+<section class="section-block architecture reveal">
+  <h2>Architecture At A Glance</h2>
+  <p>The router decides attention mode per layer based on context complexity, balancing quality and compute in one forward pass.</p>
+  <figure>
+    <img src="{{ '/assets/images/arch.png' | relative_url }}" alt="Flux Attention architecture overview">
+    <figcaption>Method overview from the Flux Attention paper.</figcaption>
+  </figure>
+</section>
 
-Flux Attention dynamically allocates **Full Attention** and **Sparse Attention** at layer level with a Layer Router. It is designed to keep model quality while reducing inference cost on long-context tasks.
+<section class="section-block reveal">
+  <h2>Inference Flow</h2>
+  <div class="flow-grid">
+    <article>
+      <h3>1. Context Profiling</h3>
+      <p>Capture token distribution and locality signals from input context.</p>
+    </article>
+    <article>
+      <h3>2. Layer Routing</h3>
+      <p>Route each layer to Full or Sparse attention according to routing confidence.</p>
+    </article>
+    <article>
+      <h3>3. Hybrid Execution</h3>
+      <p>Execute mixed attention patterns while preserving stable memory behavior.</p>
+    </article>
+    <article>
+      <h3>4. Output Generation</h3>
+      <p>Decode with long-context fidelity while reducing end-to-end wall clock cost.</p>
+    </article>
+  </div>
+</section>
 
-Core highlights:
-
-- Efficient training for 8B-scale models.
-- Strong long-context performance.
-- Significant inference speedup with stable memory behavior.
-
-## Quick Start
-
-### Installation
+<section class="section-block reveal">
+  <h2>Quick Start</h2>
+  <div class="code-stack">
+    <h3>Installation</h3>
 
 ```bash
 conda create -n flux_attn python=3.11
@@ -33,7 +92,7 @@ pip install modelscope
 pip install -e .
 ```
 
-### Training
+    <h3>Training</h3>
 
 ```bash
 chmod +x fluxattn/run_scripts/training.sh
@@ -41,28 +100,32 @@ cd fluxattn
 bash run_scripts/training.sh
 ```
 
-### Evaluation
+    <h3>Evaluation</h3>
+    <p>For comprehensive long-context benchmarks, use <a href="https://github.com/LCM-Lab/LOOM-Eval" target="_blank" rel="noopener">LOOM-Eval</a>.</p>
+  </div>
+</section>
 
-We recommend [LOOM-Eval](https://github.com/LCM-Lab/LOOM-Eval) for long-context benchmarks.
+<section class="section-block reveal">
+  <h2>Resources</h2>
+  <ul class="resource-list">
+    <li><a href="https://github.com/qqtang-code/FluxAttention/blob/main/README.md" target="_blank" rel="noopener">Project README</a></li>
+    <li><a href="https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/run_scripts" target="_blank" rel="noopener">Training Scripts</a></li>
+    <li><a href="https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/src" target="_blank" rel="noopener">Core Attention Code</a></li>
+  </ul>
+</section>
 
-## Repository
-
-Full documentation, scripts, and source code are available in this repository:
-
-- [README](https://github.com/qqtang-code/FluxAttention/blob/main/README.md)
-- [Training scripts](https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/run_scripts)
-- [Core attention code](https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/src)
-
-## Citation
+<section class="section-block citation reveal">
+  <h2>Citation</h2>
 
 ```bibtex
-@misc{tang2026fluxattentiontesttimeadaptive,
+@misc{qiu2026fluxattentioncontextawarehybrid,
   title={Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference},
   author={Quantong Qiu and Zhiyi Hong and Yi Yang and Haitian Wang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
   year={2026},
-  eprint={2601.17367},
+  eprint={2604.07394},
   archivePrefix={arXiv},
   primaryClass={cs.LG},
-  url={https://arxiv.org/abs/2601.17367}
+  url={https://arxiv.org/abs/2604.07394}
 }
 ```
+</section>
