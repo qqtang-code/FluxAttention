@@ -379,14 +379,14 @@ html {
 }
 
 .reveal {
-  opacity: 0;
-  transform: translateY(14px);
+  opacity: 1;
+  transform: none;
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
 
 .reveal.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 .section-block.reveal:nth-of-type(1) {

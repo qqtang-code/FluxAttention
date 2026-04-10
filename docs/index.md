@@ -38,7 +38,7 @@ title: Flux Attention
   </article>
 </section>
 
-<section id="benchmarks" class="section-block reveal">
+<section id="benchmarks" class="section-block">
   <h2>Performance Snapshot</h2>
   <p>Flux Attention is designed for long-context tasks where quality and runtime efficiency must co-exist.</p>
   <div class="table-wrap">
@@ -84,7 +84,7 @@ title: Flux Attention
   </p>
 </section>
 
-<section id="architecture" class="section-block architecture reveal">
+<section id="architecture" class="section-block architecture">
   <h2>Architecture At A Glance</h2>
   <p>The router decides attention mode per layer based on context complexity, balancing quality and compute in one forward pass.</p>
   <figure>
@@ -93,7 +93,7 @@ title: Flux Attention
   </figure>
 </section>
 
-<section id="flow" class="section-block reveal">
+<section id="flow" class="section-block">
   <h2>Inference Flow</h2>
   <div class="flow-grid">
     <article>
@@ -115,7 +115,7 @@ title: Flux Attention
   </div>
 </section>
 
-<section id="usecases" class="section-block reveal">
+<section id="usecases" class="section-block">
   <h2>Where It Helps Most</h2>
   <div class="pill-grid">
     <span>Long document QA</span>
@@ -127,7 +127,7 @@ title: Flux Attention
   </div>
 </section>
 
-<section id="quickstart" class="section-block reveal">
+<section id="quickstart" class="section-block">
   <h2>Quick Start</h2>
   <div class="code-stack">
     <h3>Installation</h3>
@@ -155,7 +155,7 @@ bash run_scripts/training.sh
   </div>
 </section>
 
-<section id="resources" class="section-block reveal">
+<section id="resources" class="section-block">
   <h2>Resources</h2>
   <ul class="resource-list">
     <li><a href="https://github.com/qqtang-code/FluxAttention/blob/main/README.md" target="_blank" rel="noopener">Project README</a></li>
@@ -164,7 +164,7 @@ bash run_scripts/training.sh
   </ul>
 </section>
 
-<section id="roadmap" class="section-block reveal">
+<section id="roadmap" class="section-block">
   <h2>Project Roadmap</h2>
   <ul class="resource-list">
     <li>Release more checkpoints for different model sizes.</li>
@@ -174,7 +174,7 @@ bash run_scripts/training.sh
   </ul>
 </section>
 
-<section id="faq" class="section-block reveal faq-block">
+<section id="faq" class="section-block faq-block">
   <h2>FAQ</h2>
   <details>
     <summary>Does Flux Attention require model architecture changes?</summary>
@@ -190,7 +190,7 @@ bash run_scripts/training.sh
   </details>
 </section>
 
-<section id="citation" class="section-block citation reveal">
+<section id="citation" class="section-block citation">
   <h2>Citation</h2>
 
 ```bibtex
