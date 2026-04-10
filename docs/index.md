@@ -1,9 +1,9 @@
 ---
-layout: home
+layout: default
 title: Flux Attention
 ---
 
-<section class="hero">
+<section id="top" class="hero">
   <p class="eyebrow">Long-Context LLM Acceleration</p>
   <h1>Flux Attention</h1>
   <p class="tagline">Context-Aware Hybrid Attention for efficient, high-fidelity inference at scale.</p>
@@ -23,7 +23,7 @@ title: Flux Attention
   </div>
 </section>
 
-<section class="stat-grid">
+<section id="highlights" class="stat-grid">
   <article class="stat-card">
     <h3>12 Hours</h3>
     <p>Training for 8B-scale models on 8x A800 GPUs.</p>
@@ -38,7 +38,7 @@ title: Flux Attention
   </article>
 </section>
 
-<section class="section-block">
+<section id="overview" class="section-block">
   <h2>What Makes It Different</h2>
   <p>
     Flux Attention uses a layer-level router to allocate <strong>Full Attention</strong> and <strong>Sparse Attention</strong>
@@ -46,7 +46,7 @@ title: Flux Attention
   </p>
 </section>
 
-<section class="section-block architecture reveal">
+<section id="architecture" class="section-block architecture reveal">
   <h2>Architecture At A Glance</h2>
   <p>The router decides attention mode per layer based on context complexity, balancing quality and compute in one forward pass.</p>
   <figure>
@@ -55,7 +55,7 @@ title: Flux Attention
   </figure>
 </section>
 
-<section class="section-block reveal">
+<section id="flow" class="section-block reveal">
   <h2>Inference Flow</h2>
   <div class="flow-grid">
     <article>
@@ -77,7 +77,7 @@ title: Flux Attention
   </div>
 </section>
 
-<section class="section-block reveal">
+<section id="quickstart" class="section-block reveal">
   <h2>Quick Start</h2>
   <div class="code-stack">
     <h3>Installation</h3>
@@ -105,7 +105,7 @@ bash run_scripts/training.sh
   </div>
 </section>
 
-<section class="section-block reveal">
+<section id="resources" class="section-block reveal">
   <h2>Resources</h2>
   <ul class="resource-list">
     <li><a href="https://github.com/qqtang-code/FluxAttention/blob/main/README.md" target="_blank" rel="noopener">Project README</a></li>
@@ -114,7 +114,7 @@ bash run_scripts/training.sh
   </ul>
 </section>
 
-<section class="section-block citation reveal">
+<section id="citation" class="section-block citation reveal">
   <h2>Citation</h2>
 
 ```bibtex
