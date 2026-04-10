@@ -2,7 +2,7 @@
 
 # 🚀 Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference
 
-[![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2601.17367)
+[![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.07394)
 [![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/QQTang1223/flux-attention)
 [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -13,6 +13,10 @@
 </div>
 
 ---
+
+## 🌐 Project Website
+
+GitHub Pages: https://qqtang-code.github.io/FluxAttention/
 
 ## 📖 Quick Scan
 
@@ -255,12 +259,12 @@ If you have any questions, please connect us with: `q_qtang@163.com`.
 If you find this project useful in your research, please consider citing:
 
 ```bibtex
-@misc{tang2026fluxattentiontesttimeadaptive,
+@misc{qiu2026fluxattentioncontextawarehybrid,
       title={Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference}, 
       author={Quantong Qiu and Zhiyi Hong and Yi Yang and Haitian Wang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
       year={2026},
-      eprint={2601.17367},
+      eprint={2604.07394},
       archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={[https://arxiv.org/abs/2601.17367](https://arxiv.org/abs/2601.17367)}, 
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2604.07394}, 
 }

@@ -1,0 +1,10 @@
+title: Flux Attention
+description: Context-Aware Hybrid Attention for Efficient LLMs Inference
+theme: minima
+url: https://qqtang-code.github.io
+baseurl: /FluxAttention
+markdown: kramdown
+plugins:
+  - jekyll-seo-tag
+minima:
+  skin: classic
