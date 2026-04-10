@@ -16,7 +16,7 @@
 
 ## 🌐 Project Website
 
-GitHub Pages: https://qqtang-code.github.io/FluxAttention/
+GitHub Pages: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention-Project-Page/)
 
 ## 📖 Quick Scan
 
