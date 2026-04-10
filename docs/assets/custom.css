@@ -34,8 +34,9 @@ html {
   top: 0;
   z-index: 30;
   border-bottom: 1px solid rgba(216, 222, 219, 0.9);
-  background: rgba(247, 244, 236, 0.88);
-  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, rgba(247, 244, 236, 0.96) 0%, rgba(247, 244, 236, 0.88) 100%);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(12, 38, 35, 0.04);
 }
 
 .brand-nav-wrap {
@@ -55,6 +56,14 @@ html {
   letter-spacing: -0.01em;
   color: var(--brand-deep);
   font-size: 1.15rem;
+  text-decoration: none !important;
+  border-bottom: 0 !important;
+}
+
+.brand-title:hover,
+.brand-title:focus {
+  text-decoration: none !important;
+  border-bottom: 0 !important;
 }
 
 .brand-nav {
@@ -81,6 +90,52 @@ html {
   border: 1px solid var(--brand);
   color: var(--brand-deep);
   font-weight: 600;
+}
+
+.brand-footer {
+  margin-top: 2rem;
+  border-top: 1px solid rgba(216, 222, 219, 0.9);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.75), rgba(247, 244, 236, 0.96));
+}
+
+.brand-footer-wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.1rem 0 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.brand-footer-copy strong {
+  display: block;
+  font-family: "Space Grotesk", "Avenir Next", sans-serif;
+  font-size: 1rem;
+  color: var(--brand-deep);
+}
+
+.brand-footer-copy p {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  max-width: 40ch;
+}
+
+.brand-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.brand-footer-links a {
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.brand-footer-links a:hover {
+  color: var(--brand-deep);
 }
 
 .page-content {
@@ -325,6 +380,15 @@ html {
 
   .brand-nav a {
     font-size: 0.88rem;
+  }
+
+  .brand-footer-wrap {
+    flex-direction: column;
+    padding-bottom: 1.1rem;
+  }
+
+  .brand-footer-links {
+    justify-content: flex-start;
   }
 
   .stat-grid {
