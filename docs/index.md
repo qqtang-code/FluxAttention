@@ -38,6 +38,44 @@ title: Flux Attention
   </article>
 </section>
 
+<section id="benchmarks" class="section-block reveal">
+  <h2>Performance Snapshot</h2>
+  <p>Flux Attention is designed for long-context tasks where quality and runtime efficiency must co-exist.</p>
+  <div class="table-wrap">
+    <table class="benchmark-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Backbone Baseline</th>
+          <th>Flux Attention</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Long-context retrieval quality</td>
+          <td>Strong</td>
+          <td>Comparable quality retention</td>
+        </tr>
+        <tr>
+          <td>Inference compute</td>
+          <td>High, uniform per layer</td>
+          <td>Adaptive by layer routing</td>
+        </tr>
+        <tr>
+          <td>Memory behavior</td>
+          <td>Can be heavy on long input</td>
+          <td>More stable under sparse routing</td>
+        </tr>
+        <tr>
+          <td>Training cost for 8B setup</td>
+          <td>Task dependent</td>
+          <td>~12h on 8x A800 (reported)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
 <section id="overview" class="section-block">
   <h2>What Makes It Different</h2>
   <p>
@@ -77,6 +115,18 @@ title: Flux Attention
   </div>
 </section>
 
+<section id="usecases" class="section-block reveal">
+  <h2>Where It Helps Most</h2>
+  <div class="pill-grid">
+    <span>Long document QA</span>
+    <span>Multi-file code reasoning</span>
+    <span>Conversation memory extension</span>
+    <span>Retrieval-heavy generation</span>
+    <span>Agentic planning with long traces</span>
+    <span>Enterprise report summarization</span>
+  </div>
+</section>
+
 <section id="quickstart" class="section-block reveal">
   <h2>Quick Start</h2>
   <div class="code-stack">
@@ -112,6 +162,32 @@ bash run_scripts/training.sh
     <li><a href="https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/run_scripts" target="_blank" rel="noopener">Training Scripts</a></li>
     <li><a href="https://github.com/qqtang-code/FluxAttention/tree/main/fluxattn/src" target="_blank" rel="noopener">Core Attention Code</a></li>
   </ul>
+</section>
+
+<section id="roadmap" class="section-block reveal">
+  <h2>Project Roadmap</h2>
+  <ul class="resource-list">
+    <li>Release more checkpoints for different model sizes.</li>
+    <li>Expand benchmark coverage on practical long-context scenarios.</li>
+    <li>Improve deployment recipes for multi-GPU inference serving.</li>
+    <li>Continue integration with evaluation toolchains.</li>
+  </ul>
+</section>
+
+<section id="faq" class="section-block reveal faq-block">
+  <h2>FAQ</h2>
+  <details>
+    <summary>Does Flux Attention require model architecture changes?</summary>
+    <p>It relies on router-guided hybrid attention behavior and corresponding implementation support, with checkpoints and code provided in this project.</p>
+  </details>
+  <details>
+    <summary>Is this only useful for very long contexts?</summary>
+    <p>The benefit is strongest on long input, but adaptive routing can still provide practical efficiency gains in mixed workloads.</p>
+  </details>
+  <details>
+    <summary>How should I evaluate it?</summary>
+    <p>Use long-context benchmarks (for example with LOOM-Eval) and compare both quality metrics and wall-clock runtime.</p>
+  </details>
 </section>
 
 <section id="citation" class="section-block citation reveal">

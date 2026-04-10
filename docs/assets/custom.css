@@ -236,6 +236,20 @@ html {
   animation: rise 0.8s ease-out;
 }
 
+.section-block p {
+  max-width: 75ch;
+}
+
+.section-block.reveal {
+  opacity: 1;
+  transform: none;
+}
+
+.section-block.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 .architecture figure {
   margin: 0.8rem 0 0;
 }
@@ -245,6 +259,7 @@ html {
   border-radius: 14px;
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+  background: #fff;
 }
 
 .architecture figcaption {
@@ -275,6 +290,66 @@ html {
 
 .flow-grid p {
   margin: 0;
+  color: var(--muted);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.benchmark-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.benchmark-table th {
+  color: var(--brand-deep);
+  background: rgba(15, 125, 116, 0.06);
+}
+
+.pill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.pill-grid span {
+  padding: 0.45rem 0.78rem;
+  border-radius: 999px;
+  background: rgba(15, 125, 116, 0.08);
+  border: 1px solid rgba(15, 125, 116, 0.18);
+  color: var(--brand-deep);
+  font-size: 0.92rem;
+}
+
+.faq-block details {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  background: #fffcf7;
+}
+
+.faq-block details + details {
+  margin-top: 0.75rem;
+}
+
+.faq-block summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--brand-deep);
+}
+
+.faq-block p {
+  margin: 0.6rem 0 0;
   color: var(--muted);
 }
 
@@ -389,6 +464,11 @@ html {
 
   .flow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .benchmark-table th,
+  .benchmark-table td {
+    padding: 0.75rem 0.7rem;
   }
 
   .code-stack h3 {
