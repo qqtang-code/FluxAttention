@@ -88,7 +88,7 @@ title: Flux Attention
   <h2>Architecture At A Glance</h2>
   <p>The router decides attention mode per layer based on context complexity, balancing quality and compute in one forward pass.</p>
   <figure>
-    <img src="{{ '/assets/images/arch.png' | relative_url }}" alt="Flux Attention architecture overview">
+    <img src="{{ './assets/images/arch.png' | relative_url }}" alt="Flux Attention architecture overview">
     <figcaption>Method overview from the Flux Attention paper.</figcaption>
   </figure>
 </section>
