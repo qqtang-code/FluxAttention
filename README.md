@@ -259,12 +259,9 @@ If you have any questions, please connect us with: `q_qtang@163.com`.
 If you find this project useful in your research, please consider citing:
 
 ```bibtex
-@misc{qiu2026fluxattentioncontextawarehybrid,
-      title={Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference}, 
-      author={Quantong Qiu and Zhiyi Hong and Yi Yang and Haitian Wang and Kebin Liu and Qingqing Dang and Juntao Li and Min Zhang},
-      year={2026},
-      eprint={2604.07394},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2604.07394}, 
+@article{qiu2026flux,
+  title={Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference},
+  author={Qiu, Quantong and Hong, Zhiyi and Yang, Yi and Wang, Haitian and Liu, Kebin and Dang, Qingqing and Li, Juntao and Zhang, Min},
+  journal={arXiv preprint arXiv:2604.07394},
+  year={2026}
 }
