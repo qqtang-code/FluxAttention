@@ -79,9 +79,9 @@ def flash_attn_split_window_only(
             ks,
             vs,
             causal=cfg.causal,
-            window_size=(cfg.window - 1, 0)
-            if cfg.causal
-            else (cfg.window - 1, cfg.window - 1),
+            window_size=(
+                (cfg.window - 1, 0) if cfg.causal else (cfg.window - 1, cfg.window - 1)
+            ),
         )
         out.index_copy_(0, stream_idx, os_)
 

@@ -109,7 +109,9 @@ def run(
     for r in results:
         print(f"{r.name:<28s} {r.ms:>10.3f} {baseline / r.ms:>9.2f}x")
     if sink > 0 and has_flash_attn():
-        print("* FA2 split drops the attention-sink portion (not numerically equivalent).")
+        print(
+            "* FA2 split drops the attention-sink portion (not numerically equivalent)."
+        )
 
 
 def main() -> None:

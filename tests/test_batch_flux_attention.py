@@ -197,7 +197,9 @@ def test_query_offset_can_be_given_explicitly() -> None:
     qi = torch.arange(4, 6).view(1, 1, 2, 1)
     ki = torch.arange(6).view(1, 1, 1, 6)
     probs = torch.softmax(scores.masked_fill(qi < ki, float("-inf")), dim=-1)
-    torch.testing.assert_close(out, torch.matmul(probs, v[:, :, :6]), atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(
+        out, torch.matmul(probs, v[:, :, :6]), atol=1e-6, rtol=1e-6
+    )
 
 
 def test_query_offset_is_validated() -> None:
@@ -221,7 +223,9 @@ def test_kernel_validates_route_shape_and_device() -> None:
     with pytest.raises(ValueError):
         batch_flux_attention(q, k, v, torch.zeros(3, dtype=torch.int32), cfg)
     with pytest.raises(ValueError):
-        batch_flux_attention(q, k, v, torch.zeros(2, dtype=torch.int32, device="meta"), cfg)
+        batch_flux_attention(
+            q, k, v, torch.zeros(2, dtype=torch.int32, device="meta"), cfg
+        )
 
 
 def test_kernel_validates_head_counts() -> None:
@@ -276,8 +280,11 @@ def test_model_layout_adapter_round_trips_bshd(monkeypatch) -> None:
 
     # The dense sample must reproduce causal SDPA with GQA broadcast.
     dense = torch.nn.functional.scaled_dot_product_attention(
-        q[0:1].transpose(1, 2), k[0:1].transpose(1, 2), v[0:1].transpose(1, 2),
-        is_causal=True, enable_gqa=True,
+        q[0:1].transpose(1, 2),
+        k[0:1].transpose(1, 2),
+        v[0:1].transpose(1, 2),
+        is_causal=True,
+        enable_gqa=True,
     ).transpose(1, 2)
     torch.testing.assert_close(out[0], dense[0], atol=1e-5, rtol=1e-5)
 
@@ -431,5 +438,7 @@ def test_runner_matches_functional_api() -> None:
     torch.testing.assert_close(out, ref, atol=1e-5, rtol=1e-5)
 
     # A second call with a fresh route tensor must produce a different result.
-    out2 = runner(q_bshd, k_bshd, v_bshd, torch.zeros(B, device=device, dtype=torch.int32))
+    out2 = runner(
+        q_bshd, k_bshd, v_bshd, torch.zeros(B, device=device, dtype=torch.int32)
+    )
     assert not torch.allclose(out2.transpose(1, 2), out, atol=1e-4)

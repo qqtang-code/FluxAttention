@@ -90,9 +90,7 @@ class PawQwen3Config(Qwen3Config):
 
         # Per-sample routing for batched inference: each sequence in the batch
         # picks dense or streaming attention from its own router decision.
-        self.use_batch_routed_attention = kwargs.pop(
-            "use_batch_routed_attention", True
-        )
+        self.use_batch_routed_attention = kwargs.pop("use_batch_routed_attention", True)
 
         super().__init__(*args, **kwargs)
 

@@ -28,9 +28,7 @@ class StreamingConfig:
             raise ValueError("sink must be non-negative")
 
     @classmethod
-    def from_model_config(
-        cls, config: Any, causal: bool = True
-    ) -> "StreamingConfig":
+    def from_model_config(cls, config: Any, causal: bool = True) -> "StreamingConfig":
         """Builds the streaming pattern from a Flux Attention model config."""
         return cls(
             window=int(getattr(config, "local_window_size")),

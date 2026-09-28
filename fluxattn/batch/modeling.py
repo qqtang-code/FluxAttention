@@ -20,9 +20,7 @@ __all__ = [
 ]
 
 
-def route_from_sparse_mask(
-    sparse_mask: Tensor, dense_when_one: bool = True
-) -> Tensor:
+def route_from_sparse_mask(sparse_mask: Tensor, dense_when_one: bool = True) -> Tensor:
     """Turns the layer router output into the per-sample route the kernel wants.
 
     ``sparse_mask`` is the router's ``z`` with shape ``[B, H, 1]`` (or any shape
@@ -100,7 +98,9 @@ class BatchedRoutedAttention:
         causal: bool = True,
         block_size: int = 128,
     ) -> None:
-        self.cfg = StreamingConfig(window=int(window), sink=int(sink), causal=bool(causal))
+        self.cfg = StreamingConfig(
+            window=int(window), sink=int(sink), causal=bool(causal)
+        )
         self.block_size = int(block_size)
         self._route_buffers: Dict[Tuple[torch.device, int], Tensor] = {}
 
@@ -131,7 +131,12 @@ class BatchedRoutedAttention:
         return buffer
 
     def __call__(
-        self, q: Tensor, k: Tensor, v: Tensor, route: Tensor, q_offset: Optional[int] = None
+        self,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        route: Tensor,
+        q_offset: Optional[int] = None,
     ) -> Tensor:
         return batched_routed_attention(
             q,
