@@ -15,11 +15,14 @@
 ## 🎉 News
 
 - **[2026-09]** Flux Attention has been **accepted to NeurIPS 2026**. 🎉
+- **[2026-09]** Repository reorganised into `fluxattn/{kernels,models,batch,training,eval}`. Model imports moved: `fluxattn.training.eval.modeling_flash_qwen` → `fluxattn.models.modeling_qwen3`, `fluxattn.training.modeling_flash_qwen` → `fluxattn.training.modeling.modeling_qwen3`, and the training entry point is now `python -m fluxattn.training.train`.
 - **[2026-09]** Batched inference: per-sample dense/streaming routing in a single FlexAttention launch. See [Multi-Batch Inference](#-multi-batch-inference-per-sample-routing).
 
 ## 🌐 Project Website
 
-GitHub Pages: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention/)
+Project page: [https://qqtang-code.github.io/FluxAttention-Project-Page/](https://qqtang-code.github.io/FluxAttention-Project-Page/)
+
+This repository also publishes its README as a GitHub Pages site: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention/)
 
 ## 📖 Quick Scan
 
@@ -33,6 +36,42 @@ Flux Attention features:
 - **Inference Acceleration:** Achieves higher sparsity and substantial wall-clock speedups on long-context tasks, avoiding the memory fragmentation typically caused by head-level routing.
 - **Multi-Batch Inference:** Routes every sequence in a batch independently, so a dense request and a streaming request share one forward pass instead of one batch-wide decision.
 
+## 📂 Repository Structure
+
+```
+FluxAttention/
+├── fluxattn/                       # installable package (pip install -e .)
+│   ├── kernels/                    # XAttention block-sparse prefill kernels
+│   │   └── xattention.py           # Xattention_prefill_dim3 / _dim4
+│   ├── batch/                      # per-sample routed attention (FlexAttention)
+│   │   ├── flex_attn.py            # the routed kernel
+│   │   ├── modeling.py             # model-layout adapter, router -> route conversion
+│   │   ├── config.py               # StreamingConfig(window, sink, causal)
+│   │   ├── reference.py            # slow softmax oracle used by the tests
+│   │   └── baselines.py            # optional flash-attn baselines
+│   ├── models/                     # inference models (KV cache, generate)
+│   │   ├── modeling_llama.py       # PawLlamaForCausalLM
+│   │   └── modeling_qwen3.py       # PawQwen3ForCausalLM
+│   ├── training/                   # training pipeline
+│   │   ├── train.py                # entry point: python -m fluxattn.training.train
+│   │   ├── trainer.py              # FSDP / sequence-parallel trainer
+│   │   ├── dataset.py              # packed long-context datasets
+│   │   ├── arguments.py            # ScriptArguments / TrainingArguments
+│   │   └── modeling/               # training-time model variants
+│   └── eval/                       # evaluation-side helpers (argument parsing)
+├── integrations/
+│   └── nano-vllm/                  # nano-vLLM with the Flux Attention kernels wired in
+├── scripts/                        # training launchers (torchrun + FSDP)
+├── benchmarks/                     # routed vs. dense attention benchmarks
+├── tests/                          # correctness tests
+└── figures/
+```
+
+Two variants of each backbone are shipped: `fluxattn/models/` holds the inference
+models (KV cache + `generate`), while `fluxattn/training/modeling/` holds the
+training variants, whose forward also returns the routing auxiliary outputs.
+Both register the same architecture names (`PawLlamaForCausalLM`,
+`PawQwen3ForCausalLM`), so use the pair that matches the workflow.
 
 ## 💻 System Environment
 
@@ -126,19 +165,20 @@ Pre-trained models and checkpoints are available on ModelScope.
 
 ## 🏃 Training
 
-To start training with the provided demo data, utilize the included startup script.
+To start training with the provided demo data, use the launcher in `scripts/`:
 
 ```bash
-# Grant execution permissions
-chmod +x fluxattn/run_scripts/training.sh
-
-cd fluxattn
-# Run the training script
-bash run_scripts/training.sh
-
+# Run training (wraps torchrun + the FSDP configuration)
+./scripts/train_qwen3_4b.sh
 ```
 
-> **Configuration:** Batch size, learning rate, and other hyperparameters can be modified inside `fluxattn/run_scripts/training.sh`.
+The launcher only builds the distributed command line; the training entry point itself is a module:
+
+```bash
+python -m fluxattn.training.train --help
+```
+
+> **Configuration:** the model path, dataset path, batch size, learning rate and the streaming/router hyperparameters are environment-overridable variables at the top of `scripts/train_qwen3_4b.sh`.
 
 ## ⚡ Quick Start (Inference)
 
@@ -169,14 +209,14 @@ def load_sparse_model(model_path):
 
     # Register custom architectures
     if "PawLlama" in arch_name:
-        from fluxattn.training.eval.modeling_flash_llama import (
+        from fluxattn.models.modeling_llama import (
             PawLlamaForCausalLM, PawLlamaConfig
         )
         AutoModelForCausalLM.register(PawLlamaConfig, PawLlamaForCausalLM)
         model_cls = PawLlamaForCausalLM
         
     elif "PawQwen" in arch_name:
-        from fluxattn.training.eval.modeling_flash_qwen import (
+        from fluxattn.models.modeling_qwen3 import (
             PawQwen3ForCausalLM, PawQwen3Config
         )
         AutoModelForCausalLM.register(PawQwen3Config, PawQwen3ForCausalLM)
@@ -245,7 +285,7 @@ out = runner(q_bshd, k_bshd, v_bshd, route)          # [B, S, H, D]
 
 ### Enabled in the inference path
 
-`fluxattn/training/eval/modeling_flash_qwen.py` and `..._llama.py` use per-sample routing automatically whenever a forward pass carries more than one sequence and `toggle_type == "streaming"`. The router's decisions used to be collapsed into a single batch-wide gate, which is only well defined for one sequence; multi-sequence batches now keep each sequence's own decision. Set `use_batch_routed_attention: false` in the model config to go back to the batch-wide gate.
+`fluxattn/models/modeling_qwen3.py` and `fluxattn/models/modeling_llama.py` use per-sample routing automatically whenever a forward pass carries more than one sequence and `toggle_type == "streaming"`. The router's decisions used to be collapsed into a single batch-wide gate, which is only well defined for one sequence; multi-sequence batches now keep each sequence's own decision. Set `use_batch_routed_attention: false` in the model config to go back to the batch-wide gate.
 
 Per sample, the route selects:
 - `route = 0` → exact causal attention over the whole (cached) sequence.
@@ -253,11 +293,7 @@ Per sample, the route selects:
 
 ### Tests and benchmark
 
-```bash
-pytest tests/ -q                       # correctness against a materialised softmax oracle
-python benchmarks/bench_batch_routing.py --B 8 --S 16384 --D 128 --window 2048 --sink 1024 --ratio 0.5
-python benchmarks/bench_batch_routing.py --B 32 --S 4096 --D 128 --qlen 1 --ratio 0.5   # decode
-```
+`tests/test_batch_flux_attention.py` checks the kernel against a materialised softmax oracle (prefill, decode against a cache, GQA, mixed routes, all-dense, all-streaming) and `benchmarks/bench_batch_routing.py` compares it with dense baselines. Commands are in [Development](#-development).
 
 ### Notes and limitations
 
@@ -266,13 +302,24 @@ python benchmarks/bench_batch_routing.py --B 32 --S 4096 --D 128 --qlen 1 --rati
 - `window` and `sink` are exact token counts in the mask, while the block-sparse baseline keeps whole 128-token blocks, so a routed streaming sample may see up to 127 fewer tokens of context than the `block_streaming_attn_func` path.
 - Each distinct `(query length, cache length, query offset)` builds its own block mask, so decoding against a growing cache rebuilds it on every step. Prefill batches (`S == Sk`) are unaffected.
 
+## 🚀 Serving with nano-vLLM
+
+`integrations/nano-vllm/` is [nano-vLLM](https://github.com/GeeeekExplorer/nano-vllm) with Flux Attention wired into its Qwen3 attention layer (the layer router runs during prefill and selects full or windowed attention) for throughput-oriented offline inference:
+
+```bash
+pip install -e integrations/nano-vllm
+python integrations/nano-vllm/example.py
+```
+
+See `integrations/nano-vllm/README.md` for the configuration and benchmark numbers.
+
 ## ⚖️ Evaluation
 
 We recommend using **[LOOM-Eval](https://github.com/LCM-Lab/LOOM-Eval)** for comprehensive evaluation of long-context capabilities.
 
 ```bash
 # 1. Clone and Install
-git clone [https://github.com/LCM-Lab/LOOM-Eval.git](https://github.com/LCM-Lab/LOOM-Eval.git)
+git clone https://github.com/LCM-Lab/LOOM-Eval.git
 cd LOOM-Eval
 pip install -e .
 
@@ -286,6 +333,20 @@ loomeval.run \
   --gp_num 1 \
   --output_dir /path/to/results
 
+```
+
+## 🧪 Development
+
+```bash
+# Editable install with the dev extras (black, flake8, pytest)
+pip install -e ".[dev]"
+
+# Correctness tests: the FlexAttention cases need CUDA, the rest run on CPU
+pytest tests/ -q
+
+# Routed attention against dense baselines
+python benchmarks/bench_batch_routing.py --B 8 --S 16384 --D 128 --window 2048 --sink 1024 --ratio 0.5
+python benchmarks/bench_batch_routing.py --B 32 --S 4096 --D 128 --qlen 1 --ratio 0.5   # decode
 ```
 
 ## 🔗 Related Implementations
@@ -322,3 +383,4 @@ If you find this project useful in your research, please consider citing:
   journal={arXiv preprint arXiv:2604.07394},
   year={2026}
 }
+```
