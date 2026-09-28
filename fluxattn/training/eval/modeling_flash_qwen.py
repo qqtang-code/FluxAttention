@@ -64,6 +64,7 @@ from block_sparse_attn import block_streaming_attn_func
 from dataclasses import dataclass
 
 from fluxattn.src.Xattention import Xattention_prefill_dim3, Xattention_prefill_dim4
+from fluxattn.batch import BatchedRoutedAttention, route_from_sparse_mask
 
 
 logger = logging.get_logger(__name__)
@@ -86,6 +87,12 @@ class PawQwen3Config(Qwen3Config):
 
         # TriangleMix
         self.triangle_n_last = kwargs.pop("triangle_n_last", 128)
+
+        # Per-sample routing for batched inference: each sequence in the batch
+        # picks dense or streaming attention from its own router decision.
+        self.use_batch_routed_attention = kwargs.pop(
+            "use_batch_routed_attention", True
+        )
 
         super().__init__(*args, **kwargs)
 
@@ -971,12 +978,48 @@ class Qwen3Attention(nn.Module):
         else:
             raise ValueError(f"Unknown toggle type: {self.toggle_type}")
 
+        self._batch_routed_attn = None
+
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return (
             tensor.view(bsz, seq_len, self.num_heads, self.head_dim)
             .transpose(1, 2)
             .contiguous()
         )
+
+    def _routed_batch_attention(self, q, k_cache, v_cache, z_kv_batch):
+        """Per-sample dense/streaming attention for a batch of sequences.
+
+        The batch-wide gate used elsewhere in this module can only describe one
+        decision for the whole batch, so it is unusable once several requests
+        share a forward pass. Here every sequence keeps its own router decision
+        and the batch is served by a single FlexAttention launch.
+
+        Returns None when per-sample routing does not apply, leaving the caller
+        on the original path.
+        """
+        if not getattr(self.config, "use_batch_routed_attention", True):
+            return None
+        if self.toggle_type != "streaming":
+            return None
+        if z_kv_batch is None or z_kv_batch.size(0) <= 1:
+            return None
+        if not q.is_cuda:
+            return None
+
+        # Match the block granularity of block_streaming_attn_func, which keeps
+        # whole blocks of sink and local context.
+        window = self.local_blocks * 128
+        sink = self.sink_blocks * 128
+        if window <= 0:
+            return None
+
+        if self._batch_routed_attn is None:
+            self._batch_routed_attn = BatchedRoutedAttention(
+                window=window, sink=sink, causal=True
+            )
+        route = route_from_sparse_mask(z_kv_batch)
+        return self._batch_routed_attn(q, k_cache, v_cache, route)
 
     def forward(
         self,
@@ -1008,7 +1051,10 @@ class Qwen3Attention(nn.Module):
             z_kv_batch = res["sparse_mask"]
             if z_kv_batch.shape[-2] == self.num_key_value_heads:
                 z_kv_batch = z_kv_batch.repeat_interleave(self.num_key_value_groups, 1)
-            sparse_attention_gate = 1 if z_kv_batch.sum(1) != 0 else 0
+            # Collapsing the per-sample decisions into one batch-wide gate is
+            # only meaningful for a single sequence; multi-batch forwards go
+            # through _routed_batch_attention instead.
+            sparse_attention_gate = 1 if bool((z_kv_batch.sum(1) != 0).any()) else 0
             past_len = 0
         else:
             past_k = past_key_value[0]
@@ -1060,7 +1106,12 @@ class Qwen3Attention(nn.Module):
         )
 
         if not has_layer_past:
-            if sparse_attention_gate == 1:
+            routed_output = self._routed_batch_attention(
+                q, k_cache, v_cache, z_kv_batch
+            )
+            if routed_output is not None:
+                attn_output = routed_output
+            elif sparse_attention_gate == 1:
                 if self.retrieval_mode == "full":
                     attn_output = flash_attn_func(
                         q,
@@ -1262,7 +1313,12 @@ class Qwen3Attention(nn.Module):
 
                     attn_output = torch.cat([y1, y2], dim=1)
         else:
-            if sparse_attention_gate == 1:
+            routed_output = self._routed_batch_attention(
+                q, k_cache, v_cache, z_kv_batch
+            )
+            if routed_output is not None:
+                attn_output = routed_output
+            elif sparse_attention_gate == 1:
                 bsz = q.size(0)
                 seqlen_int = k_cache.size(1)
                 cache_seqlens = torch.full(

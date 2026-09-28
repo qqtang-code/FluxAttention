@@ -2,21 +2,24 @@
 
 # 🚀 Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference
 
+[![NeurIPS 2026](https://img.shields.io/badge/NeurIPS%202026-Accepted-6f42c1.svg)](#-news)
 [![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.07394)
 [![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/QQTang1223/flux-attention)
 [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-
-
-
 </div>
 
 ---
 
+## 🎉 News
+
+- **[2026-09]** Flux Attention has been **accepted to NeurIPS 2026**. 🎉
+- **[2026-09]** Batched inference: per-sample dense/streaming routing in a single FlexAttention launch. See [Multi-Batch Inference](#-multi-batch-inference-per-sample-routing).
+
 ## 🌐 Project Website
 
-GitHub Pages: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention-Project-Page/)
+GitHub Pages: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention/)
 
 ## 📖 Quick Scan
 
@@ -28,6 +31,7 @@ Flux Attention features:
 - **High Training Efficiency:** Requires only **12 hours** of training on 8x A800 GPUs for 8B-scale models.
 - **Long-Sequence Performance:** Preserves high-fidelity information retrieval, matching backbone models and significantly surpassing baseline methods *(validated on Meta-Llama-3.1-8B-Instruct and Qwen3-series models)*.
 - **Inference Acceleration:** Achieves higher sparsity and substantial wall-clock speedups on long-context tasks, avoiding the memory fragmentation typically caused by head-level routing.
+- **Multi-Batch Inference:** Routes every sequence in a batch independently, so a dense request and a streaming request share one forward pass instead of one batch-wide decision.
 
 
 ## 💻 System Environment
@@ -208,6 +212,59 @@ print("\nOutput:\n" + tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
 
 </details>
+
+## 🧩 Multi-Batch Inference (Per-Sample Routing)
+
+Serving several requests in one forward pass needs a routing decision **per sequence**, not per batch: whether streaming attention is safe is a property of an individual context, not of the requests it happens to share a batch with. `fluxattn.batch` implements this on top of PyTorch **FlexAttention** — a single kernel launch serves a batch in which some sequences run dense attention and others run streaming attention (attention sink + sliding window).
+
+Dense and streaming samples are distinguished inside one `mask_mod`, so FlexAttention prunes the out-of-window KV blocks of the streaming samples while building the block mask: no second kernel launch, no regrouping of the batch.
+
+```python
+import torch
+from fluxattn.batch import StreamingConfig, batch_flux_attention
+
+B, H, S, D = 8, 16, 4096, 128
+q, k, v = (torch.randn(B, H, S, D, device="cuda", dtype=torch.bfloat16) for _ in range(3))
+
+# 0 = dense (full causal), 1 = streaming (sink + sliding window)
+route = torch.tensor([0, 1, 1, 1, 0, 1, 0, 1], device="cuda", dtype=torch.int32)
+cfg = StreamingConfig(window=1024, sink=128, causal=True)
+
+out = batch_flux_attention(q, k, v, route, cfg)   # [B, H, S, D]
+```
+
+The model-facing adapter takes the layout the Flux Attention models use (`q` as `[B, S, H, D]`, GQA heads allowed) and keeps the route tensor in a stable buffer so the compiled block-mask builder is not invalidated on every step:
+
+```python
+from fluxattn.batch import BatchedRoutedAttention, route_from_sparse_mask
+
+runner = BatchedRoutedAttention(window=1024, sink=128)
+route = route_from_sparse_mask(res["sparse_mask"])   # router z -> [B] route
+out = runner(q_bshd, k_bshd, v_bshd, route)          # [B, S, H, D]
+```
+
+### Enabled in the inference path
+
+`fluxattn/training/eval/modeling_flash_qwen.py` and `..._llama.py` use per-sample routing automatically whenever a forward pass carries more than one sequence and `toggle_type == "streaming"`. The router's decisions used to be collapsed into a single batch-wide gate, which is only well defined for one sequence; multi-sequence batches now keep each sequence's own decision. Set `use_batch_routed_attention: false` in the model config to go back to the batch-wide gate.
+
+Per sample, the route selects:
+- `route = 0` → exact causal attention over the whole (cached) sequence.
+- `route = 1` → streaming attention: the first `sink_size` tokens plus the most recent `local_window_size` tokens, rounded up to the 128-token blocks used by `block_streaming_attn_func`.
+
+### Tests and benchmark
+
+```bash
+pytest tests/ -q                       # correctness against a materialised softmax oracle
+python benchmarks/bench_batch_routing.py --B 8 --S 16384 --D 128 --window 2048 --sink 1024 --ratio 0.5
+python benchmarks/bench_batch_routing.py --B 32 --S 4096 --D 128 --qlen 1 --ratio 0.5   # decode
+```
+
+### Notes and limitations
+
+- Requires CUDA and a `head_dim` supported by FlexAttention (a multiple of 16).
+- The routed path does not depend on `retrieval_mode`: samples routed dense use exact full attention rather than the `xattn` block-selection approximation.
+- `window` and `sink` are exact token counts in the mask, while the block-sparse baseline keeps whole 128-token blocks, so a routed streaming sample may see up to 127 fewer tokens of context than the `block_streaming_attn_func` path.
+- Each distinct `(query length, cache length, query offset)` builds its own block mask, so decoding against a growing cache rebuilds it on every step. Prefill batches (`S == Sk`) are unaffected.
 
 ## ⚖️ Evaluation
 
