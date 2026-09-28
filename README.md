@@ -22,8 +22,6 @@
 
 Project page: [https://qqtang-code.github.io/FluxAttention-Project-Page/](https://qqtang-code.github.io/FluxAttention-Project-Page/)
 
-This repository also publishes its README as a GitHub Pages site: [https://qqtang-code.github.io/FluxAttention/](https://qqtang-code.github.io/FluxAttention/)
-
 ## 📖 Quick Scan
 
 **Flux Attention** enables models to achieve both **strong performance** and **efficient inference** by dynamically allocating computation modes (Full Attention or Sparse Attention) to each attention layer through our designed Layer Router, adapting sparsity ratios based on input characteristics.
