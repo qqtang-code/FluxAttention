@@ -3,7 +3,7 @@
 # 🚀 Flux Attention: Context-Aware Hybrid Attention for Efficient LLMs Inference
 
 [![NeurIPS 2026](https://img.shields.io/badge/NeurIPS%202026-Accepted-6f42c1.svg)](#-news)
-[![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.07394)
+[![arXiv](https://img.shields.io/badge/arXiv-Paper-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.07394v2)
 [![Hugging Face Collection](https://img.shields.io/badge/Hugging%20Face-Collection-ffd21e)](https://huggingface.co/collections/QQTang1223/flux-attention)
 [![ModelScope](https://img.shields.io/badge/ModelScope-Collection-624aff.svg)](https://modelscope.cn/collections/tang031223/Flux-Attention)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
